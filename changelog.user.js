@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cachetur Changelog Data Extractor
 // @namespace    http://tampermonkey.net/
-// @version      1.0
+// @version      1.1
 // @description  Extract and download changelog data from cachetur.no/app as JSON
 // @author       Olet
 // @match        https://cachetur.no/app
@@ -10,6 +10,21 @@
 
 (function () {
   "use strict";
+
+  // Function to extract clean text content, removing icons but preserving text
+  function getCleanTextContent(element) {
+    // Clone the element to avoid modifying the original
+    const clone = element.cloneNode(true);
+
+    // Remove all icon elements (i tags with icon classes)
+    const icons = clone.querySelectorAll(
+      'i[class*="glyphicon"], i[class*="fa"], i[class*="fal"], i[class*="far"], i[class*="fas"]'
+    );
+    icons.forEach((icon) => icon.remove());
+
+    // Return the cleaned text content
+    return clone.textContent.trim();
+  }
 
   // Function to extract data from tables
   function extractTableData() {
@@ -57,37 +72,46 @@
               let time = "";
               let type = "";
               let ticket = "";
+              let ticketUrl = "";
               let description = "";
 
               columns.forEach((col, index) => {
-                const text = col.textContent.trim();
-
                 if (col.classList.contains("col-md-1")) {
-                  // Time column
-                  time = text.replace(/^\s*\S+\s+/, ""); // Remove icon
+                  // Time column - remove clock icon
+                  time = getCleanTextContent(col);
                 } else if (col.classList.contains("col-md-2")) {
                   if (col.querySelector("a")) {
-                    // Ticket link column
+                    // Ticket link column - extract both ticket number and URL
                     const link = col.querySelector("a");
-                    ticket = link
-                      ? link.textContent.trim()
-                      : text.replace(/^\s*\S+\s+/, "");
+                    if (link) {
+                      ticket = link.textContent.trim();
+                      ticketUrl = link.href;
+                    }
                   } else {
-                    // Type column
-                    type = text.replace(/^\s*\S+\s+/, ""); // Remove icon
+                    // Type column - remove type icon
+                    type = getCleanTextContent(col);
                   }
                 } else if (col.classList.contains("col-md-7")) {
-                  // Description column
-                  description = text.replace(/^\s*\S+\s+/, ""); // Remove icon
+                  // Description column - remove app icon but keep all text
+                  description = getCleanTextContent(col);
                 }
               });
 
-              tableData.entries.push({
+              const entry = {
                 time: time,
                 type: type,
-                ticket: ticket,
                 description: description,
-              });
+              };
+
+              // Only add ticket info if it exists
+              if (ticket) {
+                entry.ticket = ticket;
+                if (ticketUrl) {
+                  entry.ticketUrl = ticketUrl;
+                }
+              }
+
+              tableData.entries.push(entry);
             }
           }
         });
@@ -174,6 +198,8 @@
             cursor: pointer;
             font-size: 14px;
             font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            transition: background-color 0.3s ease;
         `;
 
     // Add hover effect
